@@ -19,8 +19,9 @@
     const status = document.getElementById("status");
 
     if (id_token) {
+      const shortToken = id_token.slice(0, 20) + '...' + id_token.slice(-20); // Truncate token
       const time = new Date().toISOString();
-      const entry = `--- ${time} ---\nToken: ${id_token}\nURL: ${window.location.href}\n\n`;
+      const entry = `--- ${time} ---\nToken: ${shortToken}\nURL: ${window.location.href.split("#")[0]}\n\n`;
 
       const existing = localStorage.getItem("token_logs") || "";
       const updated = existing + entry;
@@ -36,7 +37,10 @@
     function makeAuthorizedRequest() {
       if (!id_token) return alert("No token found to send");
 
-      fetch("https://ww-integration-api.joinsequence.com/api/v1/ww/clinic-tab-init?locale=en-US&path=%2F", {
+      const proxyUrl = "https://cors-anywhere.herokuapp.com/";
+      const targetUrl = "https://ww-integration-api.joinsequence.com/api/v1/ww/clinic-tab-init?locale=en-US&path=%2F";
+
+      fetch(proxyUrl + targetUrl, {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${id_token}`,
