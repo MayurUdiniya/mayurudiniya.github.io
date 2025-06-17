@@ -4,7 +4,7 @@
   <title>OAuth Token Capture</title>
 </head>
 <body>
-  <h1>OAuth Token Capture (Static GitHub Page)</h1>
+  <h1>OAuth Token Capture (Static GitHub Page)xxx</h1>
   <p id="status">Waiting for token...</p>
   <textarea id="log" rows="20" cols="100" readonly></textarea>
   <button onclick="makeAuthorizedRequest()">🌐 Send Authenticated Request</button>
