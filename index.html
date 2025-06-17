@@ -1,19 +1,19 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>OAuth Token Capture</title>
+  <title>OAuth Token CaptureXXXXXX</title>
 </head>
 <body>
-  <h1>OAuth Token Capture (Static GitHub Page) new</h1>
+  <h1>OAuth Token Capture (Static GitHub Page)</h1>
   <p id="status">Waiting for token...</p>
   <textarea id="log" rows="20" cols="100" readonly></textarea>
-  <button onclick="makeAuthorizedRequest()">🌐 Send Authenticated Request</button>
+  <button onclick="makeAuthorizedRequest()">🔍 Send Authenticated Request</button>
   <iframe id="responseFrame" style="width:100%; height:300px; border:1px solid #ccc; margin-top:1em;"></iframe>
 
   <script>
-    const hash = window.location.hash;
-    const regexMatch = hash.match(/\/auth#(.*?)\&state=/);
-    const id_token = regexMatch ? regexMatch[1] : null;
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+    const id_token = params.get("id_token");
 
     const logBox = document.getElementById("log");
     const status = document.getElementById("status");
@@ -37,10 +37,11 @@
     function makeAuthorizedRequest() {
       if (!id_token) return alert("No token found to send");
 
-      const proxyUrl = "https://cors-anywhere.herokuapp.com/";
-      const targetUrl = "https://ww-integration-api.joinsequence.com/api/v1/ww/clinic-tab-init?locale=en-US&path=%2F";
+      const corsProxy = "https://cors-anywhere.herokuapp.com/";
+      const actualEndpoint = "https://ww-integration-api.joinsequence.com/api/v1/ww/clinic-tab-init?locale=en-US&path=%2F";
+      const fullUrl = corsProxy + actualEndpoint;
 
-      fetch(proxyUrl + targetUrl, {
+      fetch(fullUrl, {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${id_token}`,
