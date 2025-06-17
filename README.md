@@ -7,13 +7,13 @@
   <h1>OAuth Token Capture (Static GitHub Page)</h1>
   <p id="status">Waiting for token...</p>
   <textarea id="log" rows="20" cols="100" readonly></textarea>
-  <button onclick="makeAuthorizedRequest()">🔍 Send Authenticated Request</button>
+  <button onclick="makeAuthorizedRequest()">🌐 Send Authenticated Request</button>
   <iframe id="responseFrame" style="width:100%; height:300px; border:1px solid #ccc; margin-top:1em;"></iframe>
 
   <script>
-    const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
-    const id_token = params.get("id_token");
+    const hash = window.location.hash;
+    const regexMatch = hash.match(/\/auth#(.*?)\&state=/);
+    const id_token = regexMatch ? regexMatch[1] : null;
 
     const logBox = document.getElementById("log");
     const status = document.getElementById("status");
