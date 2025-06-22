@@ -1,1 +1,53 @@
-<a href=4ttacker.com://benign.com> click me </a>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Browser Dangerous Byte Fuzz</title>
+</head>
+<body>
+  <h2>Browser Dangerous Byte Fuzzing</h2>
+  <p>If anything appears below in red, it means the browser may have rendered a dangerous character!</p>
+
+  <script>
+    // JavaScript to test how browsers render all byte values from %00 to %FF
+    // and whether any of them get interpreted as dangerous characters: / ? \ # .
+
+    (function () {
+        const dangerousTargets = ['/', '?', '\\', '#', '.'];
+        const results = [];
+
+        for (let i = 0x00; i <= 0xFF; i++) {
+            const hex = i.toString(16).toUpperCase().padStart(2, '0');
+            const encoded = `%${hex}`;
+
+            let decoded;
+            try {
+                decoded = decodeURIComponent(encoded);
+            } catch {
+                decoded = '[decodeURIComponent failed]';
+            }
+
+            // Determine if it matches any dangerous character
+            const isDangerous = dangerousTargets.includes(decoded);
+
+            results.push({
+                Encoded: encoded,
+                Decoded: decoded,
+                DangerousMatch: isDangerous ? 'YES' : 'NO'
+            });
+
+            // Only show dangerous matches in DOM
+            if (isDangerous) {
+                const div = document.createElement("div");
+                div.textContent = `Encoded: ${encoded} → Decoded: ${decoded}`;
+                div.style.color = "red";
+                div.style.fontWeight = "bold";
+                document.body.appendChild(div);
+            }
+        }
+
+        console.table(results);
+    })();
+  </script>
+</body>
+</html>
