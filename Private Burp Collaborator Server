@@ -1,2 +1,231 @@
+## Setting up a Private Burp Collaborator Server 🕵️
 
-Setting a Private Burp Collaborator Server
+Ever been frustrated setting up your own private Burp Collaborator server? If you found this post, you're probably having a tough time. I'll walk you through the process, making it easier than the official documentation, which can be a bit complicated for newcomers.
+
+-----
+
+### Prerequisites 📋
+
+  * **A VPS**: I'm using a $10 DigitalOcean VPS.
+  * **A Domain Name**: A subdomain works too.
+  * **A Wildcard SSL Certificate**: We'll use a free Let's Encrypt certificate.
+  * **Burp Suite Pro**: You don't need a license for this setup. Burp Suite Community users can also deploy a private Collaborator server.
+
+-----
+
+### Getting Started 🚀
+
+### Setting up the VPS
+
+First, log in to your VPS and run the following commands to get it ready:
+
+```bash
+sudo apt-get update
+sudo apt-get install default-jre
+sudo mkdir -p /usr/local/collaborator/
+```
+
+Next, download the latest version of Burp Suite Pro and upload the `.jar` file to the `/usr/local/collaborator/` directory.
+
+Run `ifconfig` to find your internal and external IP addresses.
+
+Now, create a `collaborator.config` file inside the `/usr/local/collaborator/` directory.
+
+```bash
+nano /usr/local/collaborator/collaborator.config
+```
+
+Paste the following content, replacing the IP addresses with your own and the domain with your domain name.
+
+```json
+{
+  "serverDomain" : "outofbandconnections.yourdomain.com",
+  "workerThreads" : 10,
+  "eventCapture": {
+      "localAddress" : [ "139.59.x.x" ],
+      "publicAddress" : "139.59.x.x",
+      "http": {
+          "ports" : 80
+        },
+      "https": {
+          "ports" : 443
+      },
+      "smtp": {
+          "ports" : [25, 587]
+      },
+      "smtps": {
+          "ports" : 465
+      },
+      "ssl": {
+          "certificateFiles" : [
+              "/usr/local/collaborator/keys/privkey.pem",
+              "/usr/local/collaborator/keys/cert.pem",
+              "/usr/local/collaborator/keys/fullchain.pem" ]
+      }
+  },
+  "polling" : {
+      "localAddress" :  "139.59.x.x",
+      "publicAddress" :  "139.59.x.x",
+      "http": {
+          "port" : 39090
+      },
+      "https": {
+          "port" : 39443
+      },
+      "ssl": {
+          "certificateFiles" : [
+              "/usr/local/collaborator/keys/privkey.pem",
+              "/usr/local/collaborator/keys/cert.pem",
+              "/usr/local/collaborator/keys/fullchain.pem" ]
+
+      }
+  },
+  "metrics": {
+      "path" : "jnaicmez8",
+      "addressWhitelist" : ["0.0.0.0/1"]
+  },
+  "dns": {
+      "interfaces" : [{
+          "name":"ns1.outofbandconnections.yourdomain.com",
+          "localAddress":"139.59.x.x",
+          "publicAddress":"139.59.x.x"
+      }],
+      "ports" : 53
+    },
+    "logLevel" : "INFO"
+}
+```
+
+-----
+
+### Setting up Wildcard SSL Certificates 🔒
+
+Create a `configure_certs.sh` file in our working directory.
+
+```bash
+sudo nano /usr/local/collaborator/configure_certs.sh
+```
+
+Paste the following script into the file:
+
+```bash
+CERTBOT_DOMAIN=$1
+if [ -z $1 ];
+then
+    echo "Missing mandatory argument. "
+    echo " - Usage: $0  <domain> "
+    exit 1
+fi
+CERT_PATH=/etc/letsencrypt/live/$CERTBOT_DOMAIN/
+mkdir -p /usr/local/collaborator/keys/
+
+if [[ -f $CERT_PATH/privkey.pem && -f $CERT_PATH/fullchain.pem && -f $CERT_PATH/cert.pem ]]; then
+        cp $CERT_PATH/privkey.pem /usr/local/collaborator/keys/
+        cp $CERT_PATH/fullchain.pem /usr/local/collaborator/keys/
+        cp $CERT_PATH/cert.pem /usr/local/collaborator/keys/
+        chown -R collaborator /usr/local/collaborator/keys
+        echo "Certificates installed successfully"
+else
+        echo "Unable to find certificates in $CERT_PATH"
+fi
+```
+
+Install Certbot to get the Let's Encrypt certificates.
+
+```bash
+snap install --classic certbot
+```
+
+Now, run the Certbot command to get the certificates. This will prompt you to manually set up DNS TXT records.
+
+```bash
+certbot certonly -d outofbandconnections.yourdomain.com -d *.outofbandconnections.yourdomain.com  --server https://acme-v02.api.letsencrypt.org/directory --manual --agree-tos --no-eff-email --manual-public-ip-logging-ok --preferred-challenges dns-01
+```
+
+Follow the prompts, which will give you two different TXT records to create. Go to your DNS provider and configure both records using the same name: `_acme-challenge.outofbandconnections`.
+
+After the certificates are issued, install them with the following command:
+
+```bash
+chmod +x /usr/local/collaborator/configure_certs.sh && /usr/local/collaborator/configure_certs.sh outofbandconnections.yourdomain.com
+```
+
+-----
+
+### Testing the Server 🧪
+
+Run the collaborator server for the first time to check if all ports are mapped correctly. Make sure no other services are using the ports defined in your `collaborator.config` file.
+
+```bash
+bash -c  "java -Xms10m -Xmx200m -XX:GCTimeRatio=19 -jar /usr/local/collaborator/burpsuite_pro_version --collaborator-server --collaborator-config=/usr/local/collaborator/collaborator.config"
+```
+
+If everything looks good, you'll see a success message.  Press `CTRL + C` to stop the service for now.
+
+-----
+
+### Configuring DNS ⚙️
+
+Go to your DNS provider and create two new records:
+
+  * **NS record**: Point `outofbandconnections.yourdomain.com` to `ns1.outofbandconnections.yourdomain.com`.
+  * **A record**: Point `ns1.outofbandconnections.yourdomain.com` to your VPS external IP address.
+
+-----
+
+### Creating a Continuous Service 🔄
+
+To ensure the collaborator server runs continuously, create a systemd service file.
+
+```bash
+sudo nano /etc/systemd/system/collaborator.service
+```
+
+Paste the following code into the file:
+
+```ini
+[Unit]
+Description=Burp Collaborator Server Daemon
+After=network.target
+
+[Service]
+Type=simple
+UMask=007
+ExecStart=/usr/bin/java -Xms10m -Xmx200m -XX:GCTimeRatio=19 -jar /usr/local/collaborator/burpsuite_pro_version --collaborator-server --collaborator-config=/usr/local/collaborator/collaborator.config
+Restart=on-failure
+
+# Configures the time to wait before service is stopped forcefully.
+TimeoutStopSec=300
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable the service to start on boot and then start it manually:
+
+```bash
+systemctl enable collaborator
+systemctl start collaborator
+```
+
+-----
+
+### Burp Suite Setup 💻
+
+Open Burp Suite, navigate to **"Project Options"** \> **"Misc"** tab, and configure the following settings under the Burp Collaborator section.
+
+  * **Server location**: `outofbandconnections.yourdomain.com`
+  * **Polling location**: `outofbandconnections.yourdomain.com:39443`
+
+-----
+
+### Final Note 📝
+
+If you encounter any issues, feel free to reach out to me on Twitter at `@roughwire`. Until next time\!
+
+-----
+
+### References 📚
+
+  * [PortSwigger Official Documentation](https://portswigger.net/burp/documentation/collaborator/deploying)
+  * [Fabio Pires's Blog Post](https://blog.fabiopires.pt/running-your-instance-of-burp-collaborator-server/)
